@@ -4,7 +4,7 @@ import numpy as np
 
 
 # Parameters
-n_rounds = 5
+n_rounds = 15
 steps_limit = 1000
 
 
