@@ -28,7 +28,7 @@ class GridWorld:
             x += 1
         elif action == 2 and y > 0:
             y -= 1
-        elif action == 3 and self.size - 1:
+        elif action == 3 and y < self.size - 1:
             y += 1
         
         if (x, y) in self.walls:
@@ -54,9 +54,7 @@ class GridWorld:
 
 
     
-env = GridWorld()
-env.reset()
-env.render()
+
 
 def value_iteration(env, gamma=0.9, threshold=0.01):
     states = [(x, y) for x in range(env.size) for y in range(env.size)]
@@ -73,7 +71,7 @@ def value_iteration(env, gamma=0.9, threshold=0.01):
             action_values = []
             for action in range(4):
                 env.state = state
-                new_state = reward, _ = env.step(action)
+                new_state, reward, _ = env.step(action)
                 action_values.append(reward + gamma * V[new_state])
             
             V_new[state] = max(action_values)
@@ -85,7 +83,7 @@ def value_iteration(env, gamma=0.9, threshold=0.01):
 
     return V
 
-def extract_policy(env, V, gamma=0.9, threshold=0.01):
+def extract_policy(env, V, gamma=0.9):
     policy = {}
     states = [(x, y) for x in range(env.size) for y in range(env.size)]
 
@@ -93,6 +91,7 @@ def extract_policy(env, V, gamma=0.9, threshold=0.01):
         if state == env.goal:
             policy[state] = None
             continue
+
         best_action = None
         best_value = -float("inf")
 
@@ -105,19 +104,36 @@ def extract_policy(env, V, gamma=0.9, threshold=0.01):
                 best_value = value
                 best_action = action
             
-        policy[action] = env.actions[best_action] # store the best action
+        policy[state] = env.actions[best_action] # store the best action
 
     return policy
 
 
+if __name__ == "__main__":
+    env = GridWorld()
+    env.reset()
+    env.render()
 
-# for _ in range(10):
-#     action = np.random.choice([0,1,2,3])
-#     state, reward, done = env.step(action)
-#     env.render()
-#     if done:
-#         print("Goal Reached")
-#         break
+    V = value_iteration(env)
+    policy = extract_policy(env, V)
 
 
+
+    # Run the problem using our policy
+    cum_reward = 0
+    for round_count in range(10):
+        state = env.reset()
+
+        total_reward = 0
+        while True:
+            action = policy[state]
+
+            new_state, reward, done = env.step(action)
+            total_reward += reward
+
+            if done:
+                print(f"Reached to Goal with reward {total_reward}")
+                break
+        
+    
         
