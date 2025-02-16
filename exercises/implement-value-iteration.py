@@ -85,6 +85,29 @@ def value_iteration(env, gamma=0.9, threshold=0.01):
 
     return V
 
+def extract_policy(env, V, gamma=0.9, threshold=0.01):
+    policy = {}
+    states = [(x, y) for x in range(env.size) for y in range(env.size)]
+
+    for state in states:
+        if state == env.goal:
+            policy[state] = None
+            continue
+        best_action = None
+        best_value = -float("inf")
+
+        for action in range(4):
+            env.state = state
+            new_state, reward, _ = env.step(action)
+            value = reward + gamma * V[new_state]
+
+            if value > best_value:
+                best_value = value
+                best_action = action
+            
+        policy[action] = env.actions[best_action] # store the best action
+
+    return policy
 
 
 
