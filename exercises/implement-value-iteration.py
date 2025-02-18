@@ -123,7 +123,7 @@ if __name__ == "__main__":
     cum_reward = 0
     for round_count in range(10):
         state = env.reset()
-
+        
         total_reward = 0
         while True:
             action = policy[state]

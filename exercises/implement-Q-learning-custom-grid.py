@@ -57,7 +57,7 @@ class GridWorld:
 
 
 def q_learning(env, alpha=0.1, gaama=0.9, epsilon=0.2, episodes=1000):
-    states = [(x, y) for x in env.size for y in env.size]
+    states = [(x, y) for x in range(env.size) for y in range(env.size)]
     Q = {(s, a): 0 for s in states for a in range(4)}
 
     for episode in range(episodes):
@@ -73,7 +73,7 @@ def q_learning(env, alpha=0.1, gaama=0.9, epsilon=0.2, episodes=1000):
 
             # update bellman equation
             best_next_action = max(Q[(new_state, a)] for a in range(4))
-            Q[(state, action)] = alpha * (reward + (gaama * (best_next_action - Q[(state, action)])))
+            Q[(state, action)] = Q[(state, action)] + alpha * (reward + gaama * best_next_action - Q[(state, action)])
 
             state = new_state
 
@@ -82,3 +82,46 @@ def q_learning(env, alpha=0.1, gaama=0.9, epsilon=0.2, episodes=1000):
     
     return Q   # return learned Q-values
 
+
+
+def extract_policy(env, Q):
+    policy = {}
+    states = [(x, y) for x in range(env.size) for y in range(env.size)]
+
+    for state in states:
+        best_action = None
+        best_value = -float("inf")
+        for action in range(4):
+            if Q[(state, action)] > best_value:
+                best_action = action
+                best_value = Q[(state, action)]
+        
+        policy[state] = best_action
+
+    return policy
+
+
+
+if __name__ == '__main__':
+    env = GridWorld()
+    
+    Q = q_learning(env)
+    policy = extract_policy(env, Q)
+
+    for round in range(10):
+        state = env.reset()
+
+        total_reward = 0
+        while True:
+            action = policy[state]
+            
+            new_state, reward, done = env.step(action)
+            total_reward += reward
+        
+            if done:
+                print(f"Reached to Goal with reward {total_reward}")
+                break
+        
+
+
+        
