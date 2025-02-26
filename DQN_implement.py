@@ -1,39 +1,49 @@
-import gym
-import numpy as np
+import gymnasium as gym
+import math
 import random
+import matplotlib
+import matplotlib.pyplot as plt
+from collections import namedtuple, deque
+from itertools import count
 
-def dqn(env, epsilon=0, gamma=0.9):
-    replay_buffer = []
-    Q_net = np.ndarray((env.obervation_space.n, env.action_space.n))
-    Q_target_net = Q_net.copy()
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+
+
+env = gym.make('CartPole-v1')
+
+is_ipython = 'inline' in matplotlib.get_backend()
+if is_ipython:
+    from IPython import display
+
+
+plt.ion()
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else
+    "mps" if torch.backends.mps.is_available() else
+    "cpu"
+)
+
+Transition = namedtuple(
+    'Transition',
+    ('state', 'action', 'next_state', 'reward')
+)
+
+class ReplayMemory(object):
     
-    state = env.reset()[0]
-    done = False
-    while not done:
-        optim.zero_grad()
-        if random.uniform(0, 1) < epsilon:
-            action = env.action_space.sample()
-        else:
-            action = np.argmax(Q_target_net[state])
-        
-        new_state, reward, done, _, _ = env.step(action)
-        replay_buffer.append((state, reward, action, new_state))
-        sample_buffer = np.random.choice(replay_buffer)
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
 
-        pred_value = Q_net[state, action]
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Transition(*args))
 
-        if done:
-            target_value = Q_target_net[sample_buffer[0], sample_buffer[1]]
-        else:
-            new_action = np.argmax(Q_target_net[new_state])
-            target_value = Q_target_net[new_state, new_action]
-        
-        loss =  ( (reward + gamma * target_value) - pred_value )**2
-        loss.backward()
-        optim.step()
-
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
     
-
-
-
-
+    def __len__(self):
+        return len(self.memory)
+    
