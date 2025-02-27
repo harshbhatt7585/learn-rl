@@ -51,8 +51,7 @@ class GridWorld:
         x, y = self.state
         grid[x, y] = "A"
         print("\n".join([" ".join(row) for row in grid]) + "\n")
-
-
+        
     
 
 
