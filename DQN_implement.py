@@ -55,7 +55,7 @@ class DQN(nn.Module):
         self.layer2 = nn.Linear(128, 128)
         self.layer3 = nn.Linear(128, n_actions)
 
-    
+     
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
@@ -111,7 +111,6 @@ def optimize_model(config):
     transition = memory.sample(config.BATCH_SIZE)
 
     batch = Transition(*zip(*transition))
-
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=device, dtype=torch.bool)
 
     non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
@@ -204,13 +203,12 @@ if __name__ == "__main__":
             for key in policy_net_state_dict:
                 target_net_state_dict[key] = policy_net_state_dict[key]*config.TAU + target_net_state_dict[key]*(1-config.TAU)
             target_net.load_state_dict(target_net_state_dict)
-
+        
             
             if done:
                 episode_durations.append(t + 1)
                 plot_durations()
                 break
-
 
     print('Complete')
     plot_durations(show_results=True)
