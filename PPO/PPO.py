@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
+import os
 
 device = torch.device("mps") if torch.mps.is_available() else torch.device('cpu')
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 class RolloutBuffer:
     def __init__(self):
@@ -12,15 +14,15 @@ class RolloutBuffer:
         self.logprobs = []
         self.rewards = []
         self.state_values = []
-        self.is_terminal = []
+        self.is_terminals = []
     
     def clear(self):
-        del self.actions
-        del self.states
-        del self.logprobs
-        del self.rewards
-        del self.state_values
-        del self.is_terminal
+        del self.actions[:]
+        del self.states[:]
+        del self.logprobs[:]
+        del self.rewards[:]
+        del self.state_values[:]
+        del self.is_terminals[:]
     
 
 
@@ -93,7 +95,6 @@ class ActorCritic(nn.Module):
             action_var = self.action_var.expand_as(action_mean)
             cov_mat = torch.diag_embed(action_var).to(device)
             dist = MultivariateNormal(action_mean, cov_mat)
-
             if self.action_dim == 1:
                 action = action.reshape(-1, self.action_dim)
 
@@ -203,7 +204,7 @@ class PPO:
         # Monte Carlo Estimate of returns
         rewards = []
         discoutned_reward = 0
-        for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminal))
+        for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
             if is_terminal:
                 discoutned_reward = 0
             discoutned_reward = reward + (self.gamma * discoutned_reward)
@@ -230,7 +231,7 @@ class PPO:
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
 
             # match state_values tensor dimension with reward tensor
-            state_values = torch.unsqueeze(state_values)
+            state_values = torch.squeeze(state_values)
 
             # finding the ratio (pi_theta / pi_theta_old)
             ratios = torch.exp(logprobs - old_logprobs.detach())
@@ -261,3 +262,6 @@ class PPO:
     def load(self, checkpoint_path):
         self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+
+
+        
