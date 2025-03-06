@@ -6,12 +6,19 @@ import numpy as np
 import gym
 from gym.spaces import Discrete, Box
 
-def mlp(sizes, activation=nn.Tanh, output_activation=nn.Identity):
-    layers = []
-    for j in range(len(sizes)-1):
-        act = activation if j < len(sizes)-2 else output_activation
-        layers += [nn.Linear(sizes[j], sizes[j+1]), act()]
-    return nn.Sequential(*layers)
+
+class MLP(nn.Module):
+    def __init__(self, sizes, activation=nn.Tanh, output_activation=nn.Identity):
+        super(MLP, self).__init__()
+        self.layers = nn.ModuleList()
+        for j in range(len(sizes)-1):
+            act = activation if j < len(sizes)-2 else output_activation
+            self.layers += [nn.Linear(sizes[j], sizes[j+1]), act()]
+    
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
 def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, 
           epochs=50, batch_size=5000, render=False):
@@ -26,8 +33,7 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
     obs_dim = env.observation_space.shape[0]
     n_acts = env.action_space.n
 
-    # Define policy network
-    logits_net = mlp(sizes=[obs_dim]+hidden_sizes+[n_acts])
+    logits_net = MLP(sizes=[obs_dim]+hidden_sizes+[n_acts])
 
     # Policy function
     def get_policy(obs):
@@ -98,18 +104,10 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
         optimizer.step()
         return batch_loss, batch_rets, batch_lens
 
-    # Training loop
     for i in range(epochs):
         batch_loss, batch_rets, batch_lens = train_one_epoch()
         print(f'epoch: {i:3d} \t loss: {batch_loss:.3f} \t return: {np.mean(batch_rets):.3f} \t ep_len: {np.mean(batch_lens):.3f}')
 
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', '--env', type=str, default='CartPole-v1')
-    parser.add_argument('--render', action='store_true')
-    parser.add_argument('--lr', type=float, default=1e-2)
-    args = parser.parse_args()
-    
-    print('\nUsing simplest formulation of policy gradient.\n')
-    train(env_name=args.env_name, render=args.render, lr=args.lr)
+
+if __name__ == "__main__":
+    train()
