@@ -88,32 +88,36 @@ class OnlineDPOTrainer:
             'prompt_input_ids': batch['input_ids'],
             'prompt_attention_mask': batch['attention_mask'],
         }
-
-
     def generate(self, model: nn.Module, prompts: list[str]):
-        eos_token_id = self.tokenizer.eos_token_id
-        pad_token_id = self.tokenizer.pad_token_id
+        eos_id = self.tokenizer.eos_token_id
+        pad_id = self.tokenizer.pad_token_id
 
-        # Prepare prompts
-        inputs = [{"prompt": prompt} for prompt in prompts]
-        inputs = [self.tokenizer.apply_chat_template(x) for x in inputs]
-        inputs = [self.tokenizer(x) for x in inputs]
-        inputs = self.data_collator(inputs)
+        # 1) Directly tokenize raw prompts
+        batch = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        )
+        batch = {k: v.to(model.device) for k, v in batch.items()}
 
-        # duplicate each prompt for pairwise generation
-        # inputs = self._prepare_inputs(inputs)
-        prompt_ids = inputs["prompt_input_ids"].repeat(2, 1)
-        prompt_mask = inputs["prompt_attention_mask"].repeat(2, 1)
-        output = model.generate(
+        # 2) Duplicate for pairwise generation
+        prompt_ids  = batch["input_ids"].repeat(2, 1)
+        prompt_mask = batch["attention_mask"].repeat(2, 1)
+
+        # 3) Generate two completions per prompt
+        out = model.generate(
             input_ids=prompt_ids,
             attention_mask=prompt_mask,
             generation_config=self.generation_config,
         )
 
-        # separate completions
-        completion_ids = output[:, prompt_ids.size(1):]
-        completion_ids, completion_mask = truncate_right(completion_ids, eos_token_id, pad_token_id)
-        return prompt_ids, prompt_mask, completion_ids, completion_mask
+        # 4) Strip off prompts and truncate at eos
+        comps = out[:, prompt_ids.size(1):]
+        comp_ids, comp_mask = truncate_right(comps, eos_id, pad_id)
+
+        return prompt_ids, prompt_mask, comp_ids, comp_mask
+
 
     def _forward(self, model: nn.Module, prompt_ids: torch.Tensor, prompt_mask: torch.Tensor,
                  completion_ids: torch.Tensor, completion_mask: torch.Tensor) -> torch.Tensor:
@@ -150,6 +154,7 @@ class OnlineDPOTrainer:
 
         # decode and judge
         completions = self.tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
+        print(completions)
         ranks = self.judge.judge(
             prompts, list(zip(completions[:batch_size], completions[batch_size:]))
         ) if self.judge else [0]*batch_size
