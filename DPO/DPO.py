@@ -193,39 +193,29 @@ class OnlineDPOTrainer:
 
 if __name__ == "__main__":
 
-    print("Testing first_true_indices...")
     bools = torch.tensor([[False, True, False], [False, False, False]])
     idx = first_true_indices(bools)
     assert torch.equal(idx, torch.tensor([1, 3])), f"Got {idx.tolist()}"
-    print("  ✓ first_true_indices passed")
 
-    print("Testing truncate_right...")
     ids = torch.tensor([[1,2,3,99,5],[6,7,8,9,10]])
     out_ids, mask = truncate_right(ids, stop_token_id=99, pad_token_id=0)
     expected_ids = torch.tensor([[1,2,3,0,0],[6,7,8,9,10]])
     expected_mask = torch.tensor([[1,1,1,0,0],[1,1,1,1,1]])
     assert torch.equal(out_ids, expected_ids), f"IDs: {out_ids}"
     assert torch.equal(mask, expected_mask), f"Mask: {mask}"
-    print("  ✓ truncate_right passed\n")
-
-    print("Instantiating OnlineDPOTrainer with dummy components...")
 
     class DummyModel(nn.Module):
         def __init__(self, vocab_size=50, emb_dim=32):
             super().__init__()
-            # an embedding layer so input_ids → a vector
             self.embed = nn.Embedding(vocab_size, emb_dim)
-            # a linear layer so embeddings → logits
             self.to_logits = nn.Linear(emb_dim, vocab_size)
 
         def generate(self, input_ids, attention_mask=None, generation_config=None):
-            # For simplicity, just append a single “eos” token (id=2)
             batch, seq_len = input_ids.size()
             eos_tokens = torch.full((batch, 1), 2, device=input_ids.device, dtype=input_ids.dtype)
             return torch.cat([input_ids, eos_tokens], dim=1)
 
         def forward(self, input_ids, attention_mask=None):
-            # input_ids: LongTensor[batch, seq]
             x = self.embed(input_ids)                      # [batch, seq, emb_dim]
             logits = self.to_logits(x)                     # [batch, seq, vocab_size]
             return SimpleNamespace(logits=logits)
@@ -241,9 +231,6 @@ if __name__ == "__main__":
             return ["".join(map(str, row.tolist())) for row in toks]
 
         def __call__(self, prompts):
-            """
-            Simulate tokenization of a batch of prompts.
-            """
             # For simplicity, give every prompt the same fake token IDs [1,2,3]
             batch_size = len(prompts)
             seq = torch.tensor([1, 2, 3], dtype=torch.long)
@@ -285,6 +272,6 @@ if __name__ == "__main__":
 
     dummy_inputs = {"prompt": ["hello", "world"]}
     loss = trainer.training_step(trainer.model, dummy_inputs)
-    print(f"  ✓ training_step ran (loss={loss.item():.4f})")
+    print(f"(loss={loss.item():.4f})")
 
     print("\nAll checks passed!")
