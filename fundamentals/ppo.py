@@ -51,8 +51,9 @@ class PPOTrainer:
             dist = Categorical(action_probs)
             action = dist.sample()
 
-
             # compute value from critic
+            state_value = self.critic(state)
+            state_value = state_value.squeeze(0)
 
 
             # take step and get reward
