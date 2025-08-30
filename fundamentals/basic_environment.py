@@ -23,13 +23,19 @@ class BasicGridWorld:
             self.current_place = self.current_place + 1
         
         if self.current_place < 0 or self.current_place >= self.size:
-            reward = -1
+            reward = -1 * 0.1
             new_state = self.state
         else:
-            reward = # I want to give more rewards as close to the goal
+            # give rewards based on how close the goal is than the last place
+            current_distance_to_goal = abs(self.current_place - self.goal)
+            last_distance_to_goal = abs(self.state - self.goal)
+            reward = last_distance_to_goal - current_distance_to_goal
             new_state = self.current_place
         
         self.state = new_state
+        done = self.state == self.goal
+
+
         return new_state, reward, done
  
 
