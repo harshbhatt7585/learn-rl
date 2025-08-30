@@ -32,7 +32,7 @@ class BasicGridWorld:
             valid_move = False
         
         if not valid_move:
-            reward = -0.1
+            reward = -1
             new_state = self.current_place
         else:
             self.current_place = new_place
@@ -52,9 +52,14 @@ class BasicGridWorld:
 if __name__ == "__main__":
     env = BasicGridWorld()
     env.reset()
-    env.step(0)
     env.step(1)
-    env.step(2)
-    env.step(3)
+    new_state, reward, done = env.step(1)
+    new_state, reward, done = env.step(1)
+    new_state, reward, done = env.step(3)
+    new_state, reward, done = env.step(3)
+    new_state, reward, done = env.step(3)
+
+    print(reward)
+    print(done)
 
 
