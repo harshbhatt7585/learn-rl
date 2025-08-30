@@ -1,4 +1,7 @@
 from basic_environment import BasicGridWorld
+import torch
+import torch.nn as nn
+
 
 class PPOTrainer:
     def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
@@ -12,10 +15,51 @@ class PPOTrainer:
         self.eps_clip = eps_clip
         self.has_continuous_action_space = has_continuous_action_space
 
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, action_dim),
+            nn.Tanh()
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1),
+            nn.Tanh()
+        )
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
+
+
     
     def train(self):
-        
-        pass
+        for epoch in range(self.K_epochs):
+            
+            # sample action from policy
+
+
+            # compute value from critic
+
+
+            # take step and get reward
+
+
+            # store (state, action, reward)
+
+
+            # calculate advantage (GAE)
+
+
+            # calculate loss
+
+
+            # optimize (update policy and value network)
+
+
 
 
 if __name__ == "__main__":
