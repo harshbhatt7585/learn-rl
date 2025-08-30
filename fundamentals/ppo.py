@@ -35,6 +35,8 @@ class PPOTrainer:
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
+        self.buffer = []
+
 
     
     def train(self):
@@ -57,9 +59,11 @@ class PPOTrainer:
 
 
             # take step and get reward
+            new_state, reward, done = self.env.step(action)
 
 
             # store (state, action, reward)
+            self.buffer.append((state, action, reward))
 
 
             # calculate advantage (GAE)
