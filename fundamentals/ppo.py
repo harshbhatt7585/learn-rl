@@ -1,6 +1,7 @@
 from basic_environment import BasicGridWorld
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
 
 
 class PPOTrainer:
@@ -37,9 +38,18 @@ class PPOTrainer:
 
     
     def train(self):
+        self.actor.train()
+        self.critic.train()
+
+        state = self.env.reset()
+
         for epoch in range(self.K_epochs):
             
             # sample action from policy
+            logits = self.actor(state)
+            action_probs = torch.softmax(logits, dim=-1)
+            dist = Categorical(action_probs)
+            action = dist.sample()
 
 
             # compute value from critic
