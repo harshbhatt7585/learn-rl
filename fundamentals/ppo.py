@@ -6,14 +6,14 @@ from torch.nn import functional as F
 
 
 class PPOTrainer:
-    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, lambda_gae=0.95, action_std_init=0.6):
+    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, rollout_steps, eps_clip, has_continuous_action_space, lambda_gae=0.95, action_std_init=0.6):
         self.env = env
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
         self.gamma = gamma
-        self.K_epochs = K_epochs
+        self.rollout_steps = rollout_steps
         self.eps_clip = eps_clip
         self.has_continuous_action_space = has_continuous_action_space
         self.lambda_gae = lambda_gae
@@ -49,7 +49,7 @@ class PPOTrainer:
         state = self.env.reset()
 
         # 1. Collect experiences (rollout)
-        for epoch in range(self.K_epochs):
+        for epoch in range(self.rollout_steps):
             # Sample action from policy
             logits = self.actor(state)                   # Actor network output
             action_probs = torch.softmax(logits, dim=-1) # Convert to probabilities
