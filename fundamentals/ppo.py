@@ -47,10 +47,8 @@ class PPOTrainer:
         self.actor.train()
         self.critic.train()
 
-        # Reset environment and get initial state
-        state_value_raw = self.env.reset()
-        state_value_norm = float(state_value_raw) / self.state_scale
-        state = torch.tensor([state_value_norm], dtype=torch.float32).unsqueeze(0)  # shape: (1, state_dim)
+        # Reset environment and get initial state (one-hot)
+        state_value_raw = int(self.env.reset())
         state = F.one_hot(torch.tensor([state_value_raw]), num_classes=self.state_dim).float()
         episode_return = 0.0
         episode_returns = []
@@ -74,16 +72,15 @@ class PPOTrainer:
             # Store experience in buffer
             self.buffer.append((state.squeeze(), action, log_prob, state_value, reward, done))
 
-            # Update current state
-            new_state_norm = float(new_state) / self.state_scale
-            state = torch.tensor([new_state_norm], dtype=torch.float32).unsqueeze(0)
+            # Update current state (one-hot)
+            state = F.one_hot(torch.tensor([int(new_state)]), num_classes=self.state_dim).float()
             
             # Reset if episode is done
             if done:
                 episode_returns.append(episode_return)
                 print(f"Reached goal in {step_count} steps with reward {episode_return}")
-                reset_val = self.env.reset()
-                state = torch.tensor([float(reset_val) / self.state_scale], dtype=torch.float32).unsqueeze(0)
+                reset_val = int(self.env.reset())
+                state = F.one_hot(torch.tensor([reset_val]), num_classes=self.state_dim).float()
                 episode_return = 0.0
 
         # 2. Compute advantages and returns (GAE) with last state bootstrap if needed
@@ -96,7 +93,7 @@ class PPOTrainer:
 
         # 3-7. PPO update for multiple epochs (full-batch)
         for _ in range(self.k_epochs):
-            logits = self.actor(states.unsqueeze(1))
+            logits = self.actor(states)
             action_probs = torch.softmax(logits, dim=-1)
             dist = Categorical(action_probs)
             new_log_probs = dist.log_prob(actions)
@@ -106,7 +103,7 @@ class PPOTrainer:
             surr2 = torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
             policy_loss = -torch.min(surr1, surr2).mean()
 
-            new_values = self.critic(states.unsqueeze(1)).squeeze()
+            new_values = self.critic(states).squeeze()
             value_loss = F.mse_loss(new_values, returns)
 
             entropy = dist.entropy().mean()
@@ -172,14 +169,15 @@ if __name__ == "__main__":
     env = BasicGridWorld()
     trainer = PPOTrainer(
         env=env, 
-        state_dim=1,  # Using current_place as single state feature
+        state_dim=env.size,  # one-hot over all cells
         action_dim=len(env.actions), 
         lr_actor=0.00001, 
         lr_critic=0.00001, 
         gamma=0.99, 
-        rollout_steps=200,  # Increased for better learning
+        rollout_steps=1000,  # Increased for better learning
         eps_clip=0.2, 
-        k_epochs=50,
+        k_epochs=30,
+        entropy_coef=0.003,
         has_continuous_action_space=False
     )
     
