@@ -95,12 +95,22 @@ class PPOTrainer:
             # Entropy
             entropy = dist.entropy().mean()
 
+            # actor loss
+            actor_loss = policy_loss + 0.01 * entropy
+            # critic loss
+            critic_loss = value_loss
 
-            # loss
-            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy
+            # update policy
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
 
+            # update critic
+            self.critic_optimizer.zero_grad()
+            critic_loss.backward()
+            self.critic_optimizer.step()
 
-            # optimize (update policy and value network)
+            
 
         
         def compute_gae(self):
