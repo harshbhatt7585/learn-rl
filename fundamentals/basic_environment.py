@@ -7,11 +7,14 @@ class BasicGridWorld:
         self.current_place = 0
         self.width = width
         self.height = height
+        self.step_count = 0
 
     def reset(self):
         self.current_place = 0
+        self.step_count = 0
         return self.current_place
-        
+    
+
     def step(self, action):
         last_place = self.current_place
         if action == 0:  # UP
@@ -45,8 +48,9 @@ class BasicGridWorld:
         
         self.state = new_state
         done = self.state == self.goal
+        self.step_count += 1
 
-        return new_state, reward, done
+        return new_state, reward, done, self.step_count
 
     
 

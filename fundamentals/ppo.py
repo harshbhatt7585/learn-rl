@@ -54,7 +54,7 @@ class PPOTrainer:
             state_value = self.critic(state).squeeze().detach()
 
             # Take step in environment
-            new_state, reward, done = self.env.step(action.item())
+            new_state, reward, done, step_count = self.env.step(action.item())
 
             # Store experience in buffer
             self.buffer.append((state.squeeze(), action, log_prob, state_value, reward, done))
@@ -64,7 +64,8 @@ class PPOTrainer:
             
             # Reset if episode is done
             if done:
-                _, state = self.env.reset()
+                print(f"Reached goal in {step_count} steps")
+                state = self.env.reset()
                 state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)
 
         # 2. Compute advantages and returns (GAE)
