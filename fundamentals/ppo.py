@@ -48,72 +48,71 @@ class PPOTrainer:
 
         state = self.env.reset()
 
+        # 1. Collect experiences (rollout)
         for epoch in range(self.K_epochs):
-            
-            # sample action from policy
-            logits = self.actor(state)  # raw scores from actor network
-            action_probs = torch.softmax(logits, dim=-1) # convert scores to probabilities distribution
-            dist = Categorical(action_probs) # create catergorical distribution 
-            action = dist.sample() # sample an action from the distribution
-            log_prob = dist.log_prob(action) # log probability of the action
+            # Sample action from policy
+            logits = self.actor(state)                   # Actor network output
+            action_probs = torch.softmax(logits, dim=-1) # Convert to probabilities
+            dist = Categorical(action_probs)            # Create categorical distribution
+            action = dist.sample()                       # Sample action
+            log_prob = dist.log_prob(action)            # Log probability of the action
 
-            # compute value from critic
-            state_value = self.critic(state)
-            state_value = state_value.squeeze(0)
+            # Compute value from critic
+            state_value = self.critic(state).squeeze(0)
 
-
-            # take step and get reward
+            # Take step in environment
             new_state, reward, done = self.env.step(action)
 
-
-            # store (state, action, reward)
+            # Store experience in buffer
             self.buffer.append((state, action, log_prob, state_value, reward, done))
 
+            # Update current state
+            state = new_state
+            if done:
+                state = self.env.reset()
 
-            # calculate advantage (GAE)
-            states, actions, log_probs, values, returns, advantages = self.compute_gae() 
-            
 
+        # 2. Compute advantages and returns (GAE)
+        states, actions, log_probs, values, returns, advantages = self.compute_gae()
 
-            # calculate loss
-            # get new log probs 
-            logits = self.actor(states)
-            action_probs = torch.softmax(logits, dim=-1)
-            dist = Categorical(action_probs)
-            new_log_probs = dist.log_prob(actions)
+        # 3. Calculate new log probabilities
+        logits = self.actor(states)
+        action_probs = torch.softmax(logits, dim=-1)
+        dist = Categorical(action_probs)
+        new_log_probs = dist.log_prob(actions)
 
-            ratio = torch.exp(new_log_probs - log_probs.detach())
-            surr1 = ratio * advantages
-            surr2 = torch.clamp(ratio, 1-self.eps_clip, 1+self.eps_clip) * advantages
+        # 4. Compute PPO surrogate loss
+        ratio = torch.exp(new_log_probs - log_probs.detach())
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+        policy_loss = -torch.min(surr1, surr2).mean()
 
-            policy_loss = -torch.min(surr1, surr2).mean()
+        # 5. Compute value loss
+        new_values = self.critic(states).squeeze(-1)
+        value_loss = F.mse_loss(new_values, returns)
 
-            # Value
-            new_values = self.critic(states).squeeze(-1)
-            value_loss = F.mse_loss(new_values, returns)
+        # 6. Compute entropy bonus
+        entropy = dist.entropy().mean()
 
-            # Entropy
-            entropy = dist.entropy().mean()
+        # 7. actor and critic losses
+        actor_loss = policy_loss - 0.01 * entropy  # subtract entropy to encourage exploration
+        critic_loss = 0.5 * value_loss            # scale value loss
 
-            # actor loss
-            actor_loss = policy_loss + 0.01 * entropy
-            # critic loss
-            critic_loss = value_loss
+        # 8. Update actor
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
 
-            # update policy
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor_optimizer.step()
+        # 9. Update critic
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
 
-            # update critic
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward()
-            self.critic_optimizer.step()
-
-        # clear buffer
+        # 10. Clear buffer for next rollout
         self.buffer.clear()
 
-            
+
+                
         
     def compute_gae(self):
         states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
@@ -140,9 +139,6 @@ class PPOTrainer:
 
         
         return states, actions, log_probs, values, returns, advantages
-
-
-
 
 
 
