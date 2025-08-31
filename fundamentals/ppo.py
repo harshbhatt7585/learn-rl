@@ -19,19 +19,15 @@ class PPOTrainer:
         self.lambda_gae = lambda_gae
 
         self.actor = nn.Sequential(
-            nn.Linear(state_dim, 64),
+            nn.Linear(1, 16),
             nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
-            nn.Linear(64, action_dim),
+            nn.Linear(16, action_dim),
             nn.Tanh()
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_dim, 64),
+            nn.Linear(1, 16),
             nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1),
+            nn.Linear(16, 1),
             nn.Tanh()
         )
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
@@ -46,7 +42,8 @@ class PPOTrainer:
         self.actor.train()
         self.critic.train()
 
-        state = self.env.reset()
+        _, state = self.env.reset()
+        state = torch.tensor([state], dtype=torch.float32)
 
         # 1. Collect experiences (rollout)
         for epoch in range(self.rollout_steps):
@@ -144,6 +141,6 @@ class PPOTrainer:
 
 if __name__ == "__main__":
     env = BasicGridWorld()
-    trainer = PPOTrainer(env, state_dim=1, action_dim=1, lr_actor=0.001, lr_critic=0.001, gamma=0.99, K_epochs=10, eps_clip=0.2, has_continuous_action_space=False)
+    trainer = PPOTrainer(env, state_dim=env.size, action_dim=len(env.actions), lr_actor=0.001, lr_critic=0.001, gamma=0.99, rollout_steps=10, eps_clip=0.2, has_continuous_action_space=False)
     trainer.train()
     
