@@ -35,20 +35,22 @@ class BasicGridWorld:
         elif action == 3 and self.current_place % self.width == self.width - 1:  # RIGHT at right edge
             valid_move = False
         
+        # Default: step cost to encourage shorter paths
         if not valid_move:
-            reward = -1
+            reward = -2
             new_state = self.current_place
         else:
             self.current_place = new_place
-            # give rewards based on how close the goal is than the last place
-            current_distance_to_goal = abs(self.current_place - self.goal)
-            last_distance_to_goal = abs(last_place - self.goal)
-            reward = last_distance_to_goal - current_distance_to_goal
             new_state = self.current_place
+            reward = -1
         
         self.state = new_state
         done = self.state == self.goal
         self.step_count += 1
+
+        # Bonus on reaching goal
+        if done:
+            reward += 10
 
         return new_state, reward, done, self.step_count
 
@@ -58,11 +60,11 @@ if __name__ == "__main__":
     env = BasicGridWorld()
     env.reset()
     env.step(1)
-    new_state, reward, done = env.step(1)
-    new_state, reward, done = env.step(1)
-    new_state, reward, done = env.step(3)
-    new_state, reward, done = env.step(3)
-    new_state, reward, done = env.step(3)
+    new_state, reward, done, step_count = env.step(1)
+    new_state, reward, done, step_count = env.step(1)
+    new_state, reward, done, step_count = env.step(3)
+    new_state, reward, done, step_count = env.step(3)
+    new_state, reward, done, step_count = env.step(3)
 
     print(reward)
     print(done)
