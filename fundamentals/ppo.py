@@ -22,31 +22,27 @@ class PPOTrainer:
             nn.Linear(1, 16),
             nn.Tanh(),
             nn.Linear(16, action_dim),
-            nn.Tanh()
         )
         self.critic = nn.Sequential(
             nn.Linear(1, 16),
             nn.Tanh(),
             nn.Linear(16, 1),
-            nn.Tanh()
         )
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
         self.buffer = []
 
-        
-
-    
     def train(self):
         self.actor.train()
         self.critic.train()
 
+        # Reset environment and get initial state
         _, state = self.env.reset()
-        state = torch.tensor([state], dtype=torch.float32)
+        state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)  # shape: (1, 1)
 
         # 1. Collect experiences (rollout)
-        for epoch in range(self.rollout_steps):
+        for step in range(self.rollout_steps):
             # Sample action from policy
             logits = self.actor(state)                   # Actor network output
             action_probs = torch.softmax(logits, dim=-1) # Convert to probabilities
@@ -55,25 +51,27 @@ class PPOTrainer:
             log_prob = dist.log_prob(action)            # Log probability of the action
 
             # Compute value from critic
-            state_value = self.critic(state).squeeze(0)
+            state_value = self.critic(state).squeeze()
 
             # Take step in environment
-            new_state, reward, done = self.env.step(action)
+            new_state, reward, done = self.env.step(action.item())
 
             # Store experience in buffer
-            self.buffer.append((state, action, log_prob, state_value, reward, done))
+            self.buffer.append((state.squeeze(), action, log_prob, state_value, reward, done))
 
             # Update current state
-            state = new_state
+            state = torch.tensor([float(new_state)], dtype=torch.float32).unsqueeze(0)
+            
+            # Reset if episode is done
             if done:
-                state = self.env.reset()
-
+                _, state = self.env.reset()
+                state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)
 
         # 2. Compute advantages and returns (GAE)
         states, actions, log_probs, values, returns, advantages = self.compute_gae()
 
         # 3. Calculate new log probabilities
-        logits = self.actor(states)
+        logits = self.actor(states.unsqueeze(1))  # Add feature dimension
         action_probs = torch.softmax(logits, dim=-1)
         dist = Categorical(action_probs)
         new_log_probs = dist.log_prob(actions)
@@ -85,32 +83,34 @@ class PPOTrainer:
         policy_loss = -torch.min(surr1, surr2).mean()
 
         # 5. Compute value loss
-        new_values = self.critic(states).squeeze(-1)
+        new_values = self.critic(states.unsqueeze(1)).squeeze()
         value_loss = F.mse_loss(new_values, returns)
 
         # 6. Compute entropy bonus
         entropy = dist.entropy().mean()
 
-        # 7. actor and critic losses
-        actor_loss = policy_loss - 0.01 * entropy  # subtract entropy to encourage exploration
-        critic_loss = 0.5 * value_loss            # scale value loss
-
-        # 8. Update actor
+        # 7. Separate actor and critic updates
+        # Update actor
         self.actor_optimizer.zero_grad()
+        actor_loss = policy_loss - 0.01 * entropy  # subtract entropy to encourage exploration
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        # 9. Update critic
+        # Update critic
         self.critic_optimizer.zero_grad()
+        critic_loss = 0.5 * value_loss  # scale value loss
         critic_loss.backward()
         self.critic_optimizer.step()
 
-        # 10. Clear buffer for next rollout
+        # Clear buffer for next rollout
         self.buffer.clear()
 
+        return {
+            'policy_loss': policy_loss.item(),
+            'value_loss': value_loss.item(),
+            'entropy': entropy.item()
+        }
 
-                
-        
     def compute_gae(self):
         states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
 
@@ -126,7 +126,7 @@ class PPOTrainer:
         next_value = 0
 
         for t in reversed(range(len(rewards))):
-            # mask is used for eliminating the last value
+            # Mask for terminal states
             mask = 1.0 - float(dones[t])
             next_value = values[t + 1] if t < len(rewards) - 1 else 0
             delta = rewards[t] + self.gamma * next_value * mask - values[t]
@@ -134,13 +134,29 @@ class PPOTrainer:
             advantages[t] = gae
             returns[t] = advantages[t] + values[t]
 
+        # Normalize advantages
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         
         return states, actions, log_probs, values, returns, advantages
 
 
-
 if __name__ == "__main__":
     env = BasicGridWorld()
-    trainer = PPOTrainer(env, state_dim=env.size, action_dim=len(env.actions), lr_actor=0.001, lr_critic=0.001, gamma=0.99, rollout_steps=10, eps_clip=0.2, has_continuous_action_space=False)
-    trainer.train()
+    trainer = PPOTrainer(
+        env=env, 
+        state_dim=1,  # Using current_place as single state feature
+        action_dim=len(env.actions), 
+        lr_actor=0.001, 
+        lr_critic=0.001, 
+        gamma=0.99, 
+        rollout_steps=20,  # Increased for better learning
+        eps_clip=0.2, 
+        has_continuous_action_space=False
+    )
     
+    # Train for multiple iterations
+    for i in range(100):
+        metrics = trainer.train()
+        if i % 10 == 0:
+            print(f"Iteration {i}: Policy Loss: {metrics['policy_loss']:.4f}, "
+                  f"Value Loss: {metrics['value_loss']:.4f}, Entropy: {metrics['entropy']:.4f}")
