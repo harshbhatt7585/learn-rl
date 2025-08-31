@@ -37,7 +37,7 @@ class BasicGridWorld:
         
         # Default: step cost to encourage shorter paths
         if not valid_move:
-            reward = -2
+            reward = -1
             new_state = self.current_place
         else:
             self.current_place = new_place
