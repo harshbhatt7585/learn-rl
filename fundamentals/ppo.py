@@ -1,5 +1,4 @@
 from basic_environment import BasicGridWorld
-from gridworld import GridWorld
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
@@ -169,9 +168,7 @@ class PPOTrainer:
 
 
 if __name__ == "__main__":
-    # Switch between BasicGridWorld() and GridWorld()
-    # env = BasicGridWorld()
-    env = GridWorld(width=5, height=5, step_limit=100, slip_prob=0.1)
+    env = BasicGridWorld()
     trainer = PPOTrainer(
         env=env, 
         state_dim=1,  # Using current_place as single state feature
