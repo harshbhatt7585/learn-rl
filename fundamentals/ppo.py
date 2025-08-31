@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 from torch.nn import functional as F
+import matplotlib.pyplot as plt
 
 
 class PPOTrainer:
@@ -51,6 +52,7 @@ class PPOTrainer:
         state_value_norm = float(state_value_raw) / self.state_scale
         state = torch.tensor([state_value_norm], dtype=torch.float32).unsqueeze(0)  # shape: (1, state_dim)
         episode_return = 0.0
+        episode_returns = []
 
         # 1. Collect experiences (rollout)
         for step in range(self.rollout_steps):
@@ -77,6 +79,7 @@ class PPOTrainer:
             
             # Reset if episode is done
             if done:
+                episode_returns.append(episode_return)
                 print(f"Reached goal in {step_count} steps with reward {episode_return}")
                 reset_val = self.env.reset()
                 state = torch.tensor([float(reset_val) / self.state_scale], dtype=torch.float32).unsqueeze(0)
@@ -124,10 +127,12 @@ class PPOTrainer:
         # Clear buffer for next rollout
         self.buffer.clear()
 
+        avg_return = float(torch.tensor(episode_returns).mean().item()) if len(episode_returns) > 0 else float(episode_return)
         return {
             'policy_loss': float(policy_loss.detach().item()),
             'value_loss': float(value_loss.detach().item()),
-            'entropy': float(entropy.detach().item())
+            'entropy': float(entropy.detach().item()),
+            'avg_return': avg_return
         }
 
     def compute_gae(self, last_value):
@@ -171,14 +176,37 @@ if __name__ == "__main__":
         lr_actor=0.001, 
         lr_critic=0.001, 
         gamma=0.99, 
-        rollout_steps=20,  # Increased for better learning
+        rollout_steps=50,  # Increased for better learning
         eps_clip=0.2, 
         has_continuous_action_space=False
     )
     
     # Train for multiple iterations
-    for i in range(100):
+    num_iters = 200
+    history = {"policy_loss": [], "value_loss": [], "entropy": [], "avg_return": []}
+    for i in range(num_iters):
         metrics = trainer.train()
-        if i % 10 == 0:
-            print(f"Iteration {i}: Policy Loss: {metrics['policy_loss']:.4f}, "
-                  f"Value Loss: {metrics['value_loss']:.4f}, Entropy: {metrics['entropy']:.4f}")
+        history["policy_loss"].append(metrics['policy_loss'])
+        history["value_loss"].append(metrics['value_loss'])
+        history["entropy"].append(metrics['entropy'])
+        history["avg_return"].append(metrics['avg_return'])
+        if (i + 1) % 10 == 0:
+            print(f"Iteration {i+1}: Policy Loss: {metrics['policy_loss']:.4f}, "
+                  f"Value Loss: {metrics['value_loss']:.4f}, Entropy: {metrics['entropy']:.4f}, "
+                  f"AvgReturn: {metrics['avg_return']:.2f}")
+
+    # Plot and save training curves
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+    axs[0, 0].plot(history["policy_loss"])
+    axs[0, 0].set_title("Policy Loss")
+    axs[0, 1].plot(history["value_loss"])
+    axs[0, 1].set_title("Value Loss")
+    axs[1, 0].plot(history["entropy"])
+    axs[1, 0].set_title("Entropy")
+    axs[1, 1].plot(history["avg_return"])
+    axs[1, 1].set_title("Average Return")
+    for ax in axs.flat:
+        ax.set_xlabel("Iteration")
+    plt.tight_layout()
+    plt.savefig("ppo_training_curves.png")
+    print("Saved training curves to ppo_training_curves.png")
