@@ -48,10 +48,10 @@ class PPOTrainer:
             action_probs = torch.softmax(logits, dim=-1) # Convert to probabilities
             dist = Categorical(action_probs)            # Create categorical distribution
             action = dist.sample()                       # Sample action
-            log_prob = dist.log_prob(action)            # Log probability of the action
+            log_prob = dist.log_prob(action).detach()            # Log probability of the action (detached)
 
             # Compute value from critic
-            state_value = self.critic(state).squeeze()
+            state_value = self.critic(state).squeeze().detach()
 
             # Take step in environment
             new_state, reward, done = self.env.step(action.item())
@@ -114,28 +114,30 @@ class PPOTrainer:
     def compute_gae(self):
         states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
 
-        states = torch.stack(states)
-        actions = torch.stack(actions)
-        log_probs = torch.stack(log_probs)
-        values = torch.stack(values)
-        
-        advantages = torch.zeros_like(values)
-        returns = torch.zeros_like(values)
+        # Compute targets without tracking gradients to avoid graph reuse
+        with torch.no_grad():
+            states = torch.stack(states)
+            actions = torch.stack(actions)
+            log_probs = torch.stack(log_probs)
+            values = torch.stack(values)
+            
+            advantages = torch.zeros_like(values)
+            returns = torch.zeros_like(values)
 
-        gae = 0
-        next_value = 0
+            gae = 0
+            next_value = 0
 
-        for t in reversed(range(len(rewards))):
-            # Mask for terminal states
-            mask = 1.0 - float(dones[t])
-            next_value = values[t + 1] if t < len(rewards) - 1 else 0
-            delta = rewards[t] + self.gamma * next_value * mask - values[t]
-            gae = delta + self.gamma * self.lambda_gae * mask * gae
-            advantages[t] = gae
-            returns[t] = advantages[t] + values[t]
+            for t in reversed(range(len(rewards))):
+                # Mask for terminal states
+                mask = 1.0 - float(dones[t])
+                next_value = values[t + 1] if t < len(rewards) - 1 else 0
+                delta = rewards[t] + self.gamma * next_value * mask - values[t]
+                gae = delta + self.gamma * self.lambda_gae * mask * gae
+                advantages[t] = gae
+                returns[t] = advantages[t] + values[t]
 
-        # Normalize advantages
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            # Normalize advantages
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         
         return states, actions, log_probs, values, returns, advantages
 

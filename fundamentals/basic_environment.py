@@ -10,7 +10,8 @@ class BasicGridWorld:
 
     def reset(self):
         self.state = (0, 0)
-        return self.state
+        self.current_place = 0
+        return self.state, self.current_place
     def step(self, action):
         last_place = self.current_place
         if action == 0:  # UP
