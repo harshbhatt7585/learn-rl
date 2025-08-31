@@ -110,34 +110,36 @@ class PPOTrainer:
             critic_loss.backward()
             self.critic_optimizer.step()
 
+        # clear buffer
+        self.buffer.clear()
+
             
+        
+    def compute_gae(self):
+        states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
+
+        states = torch.stack(states)
+        actions = torch.stack(actions)
+        log_probs = torch.stack(log_probs)
+        values = torch.stack(values)
+        
+        advantages = torch.zeros_like(values)
+        returns = torch.zeros_like(values)
+
+        gae = 0
+        next_value = 0
+
+        for t in reversed(range(len(rewards))):
+            # mask is used for eliminating the last value
+            mask = 1.0 - float(dones[t])
+            next_value = values[t + 1] if t < len(rewards) - 1 else 0
+            delta = rewards[t] + self.gamma * next_value * mask - values[t]
+            gae = delta + self.gamma * self.lambda_gae * mask * gae
+            advantages[t] = gae
+            returns[t] = advantages[t] + values[t]
 
         
-        def compute_gae(self):
-            states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
-
-            states = torch.stack(states)
-            actions = torch.stack(actions)
-            log_probs = torch.stack(log_probs)
-            values = torch.stack(values)
-            
-            advantages = torch.zeros_like(values)
-            returns = torch.zeros_like(values)
-
-            gae = 0
-            next_value = 0
-
-            for t in reversed(range(len(rewards))):
-                # mask is used for eliminating the last value
-                mask = 1.0 - float(dones[t])
-                next_value = values[t + 1] if t < len(rewards) - 1 else 0
-                delta = rewards[t] + self.gamma * next_value * mask - values[t]
-                gae = delta + self.gamma * self.lambda_gae * mask * gae
-                advantages[t] = gae
-                returns[t] = advantages[t] + values[t]
-
-            
-            return states, actions, log_probs, values, returns, advantages
+        return states, actions, log_probs, values, returns, advantages
 
 
 
