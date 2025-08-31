@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 
 class PPOTrainer:
-    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, rollout_steps, eps_clip, has_continuous_action_space, lambda_gae=0.95, action_std_init=0.6):
+    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, rollout_steps, eps_clip, has_continuous_action_space, lambda_gae=0.95, action_std_init=0.6, k_epochs=4, entropy_coef=0.01, max_grad_norm=0.5, normalize_state=True):
         self.env = env
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -17,14 +17,23 @@ class PPOTrainer:
         self.eps_clip = eps_clip
         self.has_continuous_action_space = has_continuous_action_space
         self.lambda_gae = lambda_gae
+        self.k_epochs = k_epochs
+        self.entropy_coef = entropy_coef
+        self.max_grad_norm = max_grad_norm
+        self.normalize_state = normalize_state
+
+        # Scale for normalizing discrete states like BasicGridWorld (0..size-1)
+        self.state_scale = float(getattr(self.env, "size", 1) - 1) if self.normalize_state else 1.0
+        if self.state_scale <= 0:
+            self.state_scale = 1.0
 
         self.actor = nn.Sequential(
-            nn.Linear(1, 16),
+            nn.Linear(self.state_dim, 16),
             nn.Tanh(),
             nn.Linear(16, action_dim),
         )
         self.critic = nn.Sequential(
-            nn.Linear(1, 16),
+            nn.Linear(self.state_dim, 16),
             nn.Tanh(),
             nn.Linear(16, 1),
         )
@@ -38,8 +47,9 @@ class PPOTrainer:
         self.critic.train()
 
         # Reset environment and get initial state
-        state = self.env.reset()
-        state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)  # shape: (1, 1)
+        state_value_raw = self.env.reset()
+        state_value_norm = float(state_value_raw) / self.state_scale
+        state = torch.tensor([state_value_norm], dtype=torch.float32).unsqueeze(0)  # shape: (1, state_dim)
         episode_return = 0.0
 
         # 1. Collect experiences (rollout)
@@ -62,60 +72,65 @@ class PPOTrainer:
             self.buffer.append((state.squeeze(), action, log_prob, state_value, reward, done))
 
             # Update current state
-            state = torch.tensor([float(new_state)], dtype=torch.float32).unsqueeze(0)
+            new_state_norm = float(new_state) / self.state_scale
+            state = torch.tensor([new_state_norm], dtype=torch.float32).unsqueeze(0)
             
             # Reset if episode is done
             if done:
                 print(f"Reached goal in {step_count} steps with reward {episode_return}")
-                state = self.env.reset()
-                state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)
+                reset_val = self.env.reset()
+                state = torch.tensor([float(reset_val) / self.state_scale], dtype=torch.float32).unsqueeze(0)
                 episode_return = 0.0
 
-        # 2. Compute advantages and returns (GAE)
-        states, actions, log_probs, values, returns, advantages = self.compute_gae()
+        # 2. Compute advantages and returns (GAE) with last state bootstrap if needed
+        with torch.no_grad():
+            last_value = self.critic(state).squeeze()
+        states, actions, log_probs, values, returns, advantages = self.compute_gae(last_value)
+        policy_loss = torch.tensor(0.0)
+        value_loss = torch.tensor(0.0)
+        entropy = torch.tensor(0.0)
 
-        # 3. Calculate new log probabilities
-        logits = self.actor(states.unsqueeze(1))  # Add feature dimension
-        action_probs = torch.softmax(logits, dim=-1)
-        dist = Categorical(action_probs)
-        new_log_probs = dist.log_prob(actions)
+        # 3-7. PPO update for multiple epochs (full-batch)
+        for _ in range(self.k_epochs):
+            logits = self.actor(states.unsqueeze(1))
+            action_probs = torch.softmax(logits, dim=-1)
+            dist = Categorical(action_probs)
+            new_log_probs = dist.log_prob(actions)
 
-        # 4. Compute PPO surrogate loss
-        ratio = torch.exp(new_log_probs - log_probs.detach())
-        surr1 = ratio * advantages
-        surr2 = torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-        policy_loss = -torch.min(surr1, surr2).mean()
+            ratio = torch.exp(new_log_probs - log_probs.detach())
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+            policy_loss = -torch.min(surr1, surr2).mean()
 
-        # 5. Compute value loss
-        new_values = self.critic(states.unsqueeze(1)).squeeze()
-        value_loss = F.mse_loss(new_values, returns)
+            new_values = self.critic(states.unsqueeze(1)).squeeze()
+            value_loss = F.mse_loss(new_values, returns)
 
-        # 6. Compute entropy bonus
-        entropy = dist.entropy().mean()
+            entropy = dist.entropy().mean()
 
-        # 7. Separate actor and critic updates
-        # Update actor
-        self.actor_optimizer.zero_grad()
-        actor_loss = policy_loss - 0.01 * entropy  # subtract entropy to encourage exploration
-        actor_loss.backward()
-        self.actor_optimizer.step()
+            # Update actor
+            self.actor_optimizer.zero_grad()
+            actor_loss = policy_loss - self.entropy_coef * entropy
+            actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.actor_optimizer.step()
 
-        # Update critic
-        self.critic_optimizer.zero_grad()
-        critic_loss = 0.5 * value_loss  # scale value loss
-        critic_loss.backward()
-        self.critic_optimizer.step()
+            # Update critic
+            self.critic_optimizer.zero_grad()
+            critic_loss = 0.5 * value_loss
+            critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+            self.critic_optimizer.step()
 
         # Clear buffer for next rollout
         self.buffer.clear()
 
         return {
-            'policy_loss': policy_loss.item(),
-            'value_loss': value_loss.item(),
-            'entropy': entropy.item()
+            'policy_loss': float(policy_loss.detach().item()),
+            'value_loss': float(value_loss.detach().item()),
+            'entropy': float(entropy.detach().item())
         }
 
-    def compute_gae(self):
+    def compute_gae(self, last_value):
         states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
 
         # Compute targets without tracking gradients to avoid graph reuse
@@ -128,14 +143,15 @@ class PPOTrainer:
             advantages = torch.zeros_like(values)
             returns = torch.zeros_like(values)
 
-            gae = 0
-            next_value = 0
+            gae = 0.0
 
             for t in reversed(range(len(rewards))):
-                # Mask for terminal states
                 mask = 1.0 - float(dones[t])
-                next_value = values[t + 1] if t < len(rewards) - 1 else 0
-                delta = rewards[t] + self.gamma * next_value * mask - values[t]
+                if t == len(rewards) - 1:
+                    next_value = last_value if mask == 1.0 else 0.0
+                else:
+                    next_value = values[t + 1]
+                delta = rewards[t] + self.gamma * float(next_value) * mask - values[t]
                 gae = delta + self.gamma * self.lambda_gae * mask * gae
                 advantages[t] = gae
                 returns[t] = advantages[t] + values[t]
