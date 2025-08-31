@@ -50,10 +50,11 @@ class PPOTrainer:
         for epoch in range(self.K_epochs):
             
             # sample action from policy
-            logits = self.actor(state)
-            action_probs = torch.softmax(logits, dim=-1)
-            dist = Categorical(action_probs)
-            action = dist.sample()
+            logits = self.actor(state)  # raw scores from actor network
+            action_probs = torch.softmax(logits, dim=-1) # convert scores to probabilities distribution
+            dist = Categorical(action_probs) # create catergorical distribution 
+            action = dist.sample() # sample an action from the distribution
+            log_prob = dist.log_prob(action) # log probability of the action
 
             # compute value from critic
             state_value = self.critic(state)
@@ -65,7 +66,7 @@ class PPOTrainer:
 
 
             # store (state, action, reward)
-            self.buffer.append((state, action, reward))
+            self.buffer.append((state, action, log_prob, state_value, reward, done))
 
 
             # calculate advantage (GAE)
