@@ -5,7 +5,7 @@ from torch.distributions import Categorical
 
 
 class PPOTrainer:
-    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
+    def __init__(self, env, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, lambda_gae=0.95, action_std_init=0.6):
         self.env = env
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -15,6 +15,7 @@ class PPOTrainer:
         self.K_epochs = K_epochs
         self.eps_clip = eps_clip
         self.has_continuous_action_space = has_continuous_action_space
+        self.lambda_gae = lambda_gae
 
         self.actor = nn.Sequential(
             nn.Linear(state_dim, 64),
@@ -37,6 +38,7 @@ class PPOTrainer:
 
         self.buffer = []
 
+        
 
     
     def train(self):
@@ -67,12 +69,42 @@ class PPOTrainer:
 
 
             # calculate advantage (GAE)
+            
 
 
             # calculate loss
 
 
             # optimize (update policy and value network)
+
+        
+        def compute_gae(self):
+            states, actions, log_probs, values, rewards, dones = zip(*self.buffer)
+
+            states = torch.stack(states)
+            actions = torch.stack(actions)
+            log_probs = torch.stack(log_probs)
+            values = torch.stack(values)
+            
+            advantages = torch.zeros_like(values)
+            returns = torch.zeros_like(values)
+
+            gae = 0
+            next_value = 0
+
+            for t in reversed(range(len(rewards))):
+                # mask is used for eliminating the last value
+                mask = 1.0 - float(dones[t])
+                next_value = values[t + 1] if t < len(rewards) - 1 else 0
+                delta = rewards[t] + self.gamma * next_value * mask - values[t]
+                gae = delta + self.gamma * self.lambda_gae * mask * gae
+                advantages[t] = gae
+                returns[t] = advantages[t] + values[t]
+
+            
+            return states, actions, log_probs, values, returns, advantages
+
+
 
 
 
