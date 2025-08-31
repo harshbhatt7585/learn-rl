@@ -40,6 +40,7 @@ class PPOTrainer:
         # Reset environment and get initial state
         state = self.env.reset()
         state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)  # shape: (1, 1)
+        episode_return = 0.0
 
         # 1. Collect experiences (rollout)
         for step in range(self.rollout_steps):
@@ -55,6 +56,7 @@ class PPOTrainer:
 
             # Take step in environment
             new_state, reward, done, step_count = self.env.step(action.item())
+            episode_return += reward
 
             # Store experience in buffer
             self.buffer.append((state.squeeze(), action, log_prob, state_value, reward, done))
@@ -64,9 +66,10 @@ class PPOTrainer:
             
             # Reset if episode is done
             if done:
-                print(f"Reached goal in {step_count} steps")
+                print(f"Reached goal in {step_count} steps with reward {episode_return}")
                 state = self.env.reset()
                 state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)
+                episode_return = 0.0
 
         # 2. Compute advantages and returns (GAE)
         states, actions, log_probs, values, returns, advantages = self.compute_gae()
