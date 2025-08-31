@@ -38,7 +38,7 @@ class PPOTrainer:
         self.critic.train()
 
         # Reset environment and get initial state
-        _, state = self.env.reset()
+        state = self.env.reset()
         state = torch.tensor([float(state)], dtype=torch.float32).unsqueeze(0)  # shape: (1, 1)
 
         # 1. Collect experiences (rollout)
