@@ -51,6 +51,7 @@ class PPOTrainer:
         state_value_raw = self.env.reset()
         state_value_norm = float(state_value_raw) / self.state_scale
         state = torch.tensor([state_value_norm], dtype=torch.float32).unsqueeze(0)  # shape: (1, state_dim)
+        state = F.one_hot(torch.tensor([state_value_raw]), num_classes=self.state_dim).float()
         episode_return = 0.0
         episode_returns = []
 
@@ -173,11 +174,12 @@ if __name__ == "__main__":
         env=env, 
         state_dim=1,  # Using current_place as single state feature
         action_dim=len(env.actions), 
-        lr_actor=0.001, 
-        lr_critic=0.001, 
+        lr_actor=0.00001, 
+        lr_critic=0.00001, 
         gamma=0.99, 
-        rollout_steps=50,  # Increased for better learning
+        rollout_steps=200,  # Increased for better learning
         eps_clip=0.2, 
+        k_epochs=50,
         has_continuous_action_space=False
     )
     
