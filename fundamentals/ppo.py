@@ -2,6 +2,7 @@ from basic_environment import BasicGridWorld
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
+from torch.nn import functional as F
 
 
 class PPOTrainer:
@@ -70,10 +71,33 @@ class PPOTrainer:
 
 
             # calculate advantage (GAE)
+            states, actions, log_probs, values, returns, advantages = self.compute_gae() 
             
 
 
             # calculate loss
+            # get new log probs 
+            logits = self.actor(states)
+            action_probs = torch.softmax(logits, dim=-1)
+            dist = Categorical(action_probs)
+            new_log_probs = dist.log_prob(actions)
+
+            ratio = torch.exp(new_log_probs - log_probs.detach())
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1-self.eps_clip, 1+self.eps_clip) * advantages
+
+            policy_loss = -torch.min(surr1, surr2).mean()
+
+            # Value
+            new_values = self.critic(states).squeeze(-1)
+            value_loss = F.mse_loss(new_values, returns)
+
+            # Entropy
+            entropy = dist.entropy().mean()
+
+
+            # loss
+            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy
 
 
             # optimize (update policy and value network)
