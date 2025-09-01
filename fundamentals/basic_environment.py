@@ -70,15 +70,12 @@ class BasicGridWorld:
 if __name__ == "__main__":
     env = BasicGridWorld()
     env.reset()
-    env.step(1)
-    new_state, reward, done, step_count = env.step(1)
-    # new_state, reward, done, step_count = env.step(1)
-    # new_state, reward, done, step_count = env.step(3)
-    # new_state, reward, done, step_count = env.step(3)
-    # new_state, reward, done, step_count = env.step(3)
-
-    print(reward)
-    print(done)
-    env.render()
+    actions = [1, 1, 3, 3, 1, 3]
+    for a in actions:
+        new_state, reward, done, step_count = env.step(a)
+        env.render()
+        print("\n\n")
+        if done:
+            break
 
 
