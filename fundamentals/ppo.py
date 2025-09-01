@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 from torch.nn import functional as F
-import matplotlib.pyplot as plt
+from plotter import LivePlotter
+
 
 
 class PPOTrainer:
@@ -29,14 +30,14 @@ class PPOTrainer:
             self.state_scale = 1.0
 
         self.actor = nn.Sequential(
-            nn.Linear(self.state_dim, 16),
+            nn.Linear(self.state_dim, 64),
             nn.Tanh(),
-            nn.Linear(16, action_dim),
+            nn.Linear(64, action_dim),
         )
         self.critic = nn.Sequential(
-            nn.Linear(self.state_dim, 16),
+            nn.Linear(self.state_dim, 64),
             nn.Tanh(),
-            nn.Linear(16, 1),
+            nn.Linear(64, 1),
         )
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
@@ -184,29 +185,20 @@ if __name__ == "__main__":
     # Train for multiple iterations
     num_iters = 200
     history = {"policy_loss": [], "value_loss": [], "entropy": [], "avg_return": []}
+    live = LivePlotter()
     for i in range(num_iters):
         metrics = trainer.train()
         history["policy_loss"].append(metrics['policy_loss'])
         history["value_loss"].append(metrics['value_loss'])
         history["entropy"].append(metrics['entropy'])
         history["avg_return"].append(metrics['avg_return'])
+        live.update(history)
         if (i + 1) % 10 == 0:
             print(f"Iteration {i+1}: Policy Loss: {metrics['policy_loss']:.4f}, "
                   f"Value Loss: {metrics['value_loss']:.4f}, Entropy: {metrics['entropy']:.4f}, "
                   f"AvgReturn: {metrics['avg_return']:.2f}")
 
     # Plot and save training curves
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-    axs[0, 0].plot(history["policy_loss"])
-    axs[0, 0].set_title("Policy Loss")
-    axs[0, 1].plot(history["value_loss"])
-    axs[0, 1].set_title("Value Loss")
-    axs[1, 0].plot(history["entropy"])
-    axs[1, 0].set_title("Entropy")
-    axs[1, 1].plot(history["avg_return"])
-    axs[1, 1].set_title("Average Return")
-    for ax in axs.flat:
-        ax.set_xlabel("Iteration")
-    plt.tight_layout()
-    plt.savefig("ppo_training_curves.png")
+    # Save final figure
+    live.fig.savefig("ppo_training_curves.png")
     print("Saved training curves to ppo_training_curves.png")
