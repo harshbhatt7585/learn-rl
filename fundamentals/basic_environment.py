@@ -54,6 +54,17 @@ class BasicGridWorld:
 
         return new_state, reward, done, self.step_count
 
+    def render(self):
+        """Prints the grid with agent (A) and goal (G)."""
+        grid = [["." for _ in range(self.width)] for _ in range(self.height)]
+        agent_x, agent_y = divmod(self.current_place, self.width)
+        goal_x, goal_y = divmod(self.goal, self.width)
+        grid[agent_x][agent_y] = "A"
+        grid[goal_x][goal_y] = "G"
+
+        for row in grid:
+            print(" ".join(row))
+
     
 
 if __name__ == "__main__":
@@ -61,12 +72,13 @@ if __name__ == "__main__":
     env.reset()
     env.step(1)
     new_state, reward, done, step_count = env.step(1)
-    new_state, reward, done, step_count = env.step(1)
-    new_state, reward, done, step_count = env.step(3)
-    new_state, reward, done, step_count = env.step(3)
-    new_state, reward, done, step_count = env.step(3)
+    # new_state, reward, done, step_count = env.step(1)
+    # new_state, reward, done, step_count = env.step(3)
+    # new_state, reward, done, step_count = env.step(3)
+    # new_state, reward, done, step_count = env.step(3)
 
     print(reward)
     print(done)
+    env.render()
 
 
