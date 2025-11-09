@@ -1,0 +1,37 @@
+{
+  "os": "macOS-15.6-arm64-arm-64bit",
+  "python": "CPython 3.12.12",
+  "startedAt": "2025-11-09T18:44:27.257142Z",
+  "program": "/Users/harshbhatt/Projects/learn-rl/DQN/train.py",
+  "codePath": "DQN/train.py",
+  "codePathLocal": "train.py",
+  "git": {
+    "remote": "https://github.com/harshbhatt7585/learn-rl.git",
+    "commit": "f695fe007fa23d77f4237ab06c5cd3826a946e8f"
+  },
+  "email": "harshbhatt7585@gmail.com",
+  "root": "/Users/harshbhatt/Projects/learn-rl/DQN",
+  "host": "Harshs-MacBook-Pro.local",
+  "executable": "/Users/harshbhatt/miniconda3/envs/rl/bin/python",
+  "cpu_count": 11,
+  "cpu_count_logical": 11,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "397032615936"
+    }
+  },
+  "memory": {
+    "total": "19327352832"
+  },
+  "apple": {
+    "name": "Apple M3 Pro",
+    "ecpuCores": 6,
+    "pcpuCores": 5,
+    "gpuCores": 14,
+    "memoryGb": 18,
+    "swapTotalBytes": "13958643712",
+    "ramTotalBytes": "19327352832"
+  },
+  "writerId": "76zsaa5h11uti0fuj3z6qeq7ysldygvy"
+}
